@@ -33,7 +33,7 @@ class YoloDetector():
     def class_to_label(self,x):
         return self.classes[int(x)]
     
-    def plot_boxes(self,results,frame,height,width,classLabel,confidence=0.3):
+    def plot_boxes(self,results,frame,height,width,classLabels,confidence=0.3):
 
         labels,cord=results
         detections=[]
@@ -46,20 +46,18 @@ class YoloDetector():
             if row[4]>=confidence:
                 x1,y1,x2,y2 = int(row[0]*x_shape), int(row[1]*y_shape),int(row[2]*x_shape),int(row[3]*y_shape)
 
-                if self.class_to_label(labels[i])==classLabel:
-                    # x_center=x1+((x2-x1)/2)
-                    # y_center=y1+((y2-y1)/2)
-                    # tlwh=np.asarray([x1,y1,int(x2-x1),int(y2-y1)], dtype=np.float32)
+                if self.class_to_label(labels[i]) in classLabels:
+                    
                     confidence=float(row[4].item())
-                    # feature='cell phone'
-
-                    detections.append(([x1,y1,int(x2-x1),int(y2-y1)],confidence,classLabel))
+                    
+                    detections.append(([x1,y1,int(x2-x1),int(y2-y1)],confidence,self.class_to_label(labels[i])))
+                    
         return frame, detections
     
 
 CAMERA_INDEX=1
-IMAGE_WIDTH=800
-IMAGE_HEIGHT=800
+IMAGE_WIDTH=1024
+IMAGE_HEIGHT=1024
 cap=cv2.VideoCapture(CAMERA_INDEX)
 
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
@@ -73,8 +71,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
 object_tracker=DeepSort(
-    max_age=5,
-    n_init=2,
+    max_age=5, #daca in 5 frameuri nu am update la track, e considerat expirat
+    n_init=2, #nr de frameuri consecutive pentru a confirma un track
     nms_max_overlap=1.0,
     max_cosine_distance=0.3,
     nn_budget=None,
@@ -89,12 +87,14 @@ object_tracker=DeepSort(
     today=None
 )
 
+labels=["cell phone", "person"]
+
 while cap.isOpened():
     success,img=cap.read()
     start=time.perf_counter()
 
     results=detector.score_frame(img)
-    img,detections=detector.plot_boxes(results,img,height=img.shape[0],width=img.shape[1],classLabel='cell phone')
+    img,detections=detector.plot_boxes(results,img,height=img.shape[0],width=img.shape[1],classLabels=labels)
 
     tracks=object_tracker.update_tracks(detections,frame=img)
     for track in tracks:
@@ -105,11 +105,11 @@ while cap.isOpened():
 
         bbox=ltrb
 
-        cv2.rectangle(img,(int(bbox[0]),int(bbox[1]),int(bbox[2]),int(bbox[3])),(0,0,255),2)
+        cv2.rectangle(img,(int(bbox[0]),int(bbox[1])),(int(bbox[2]),int(bbox[3])),(0,0,255),2)
         if track.det_conf!= None:
-            cv2.putText(img,"Id: "+str(track_id)+' Class: '+track.det_class+' Conf: '+str(round(track.det_conf,2)),(int(bbox[0]),int(bbox[1]-10)),cv2.FONT_ITALIC,0.3,(50, 168, 111),2)
+            cv2.putText(img,"Id: "+str(track_id)+' Class: '+track.det_class+' Conf: '+str(round(track.det_conf,2)),(int(bbox[0]),int(bbox[1]-10)),cv2.FONT_ITALIC,1,(50, 168, 111),2)
         else:
-            cv2.putText(img,"Id: "+str(track_id)+' Class: '+track.det_class+' Conf: None',(int(bbox[0]),int(bbox[1]-10)),cv2.FONT_ITALIC,0.3,(50, 168, 111),2)
+            cv2.putText(img,"Id: "+str(track_id)+' Class: '+track.det_class+' Conf: None',(int(bbox[0]),int(bbox[1]-10)),cv2.FONT_ITALIC,1,(50, 168, 111),2)
             
 
     end=time.perf_counter()
